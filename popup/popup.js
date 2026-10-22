@@ -1,5 +1,5 @@
 /**
- * 鱼篓 (Creel) - Popup 交互逻辑 (v3.0.0 MD3 暗色规范版)
+ * 鱼篓 (Creel) - Popup 交互逻辑 (v3.2.1 规则健壮渲染版)
  */
 
 const DEFAULT_CONFIG = {
@@ -8,9 +8,9 @@ const DEFAULT_CONFIG = {
   enableClusterDetect: true,
   enablePatternDetect: true,
   enableAtSpamDetect: true,
-  // 默认靶向昵称池
+  // 默认内置靶向昵称库 (全量对用户开放，可随时点击删除)
   nameKeywords: ['大肥鱼', '家的DSH', '包鱼的DSH', '小鲛鱼', '鲸鲸', '的肥鱼'],
-  // 针对评论正文的关键词/正则
+  // 默认正文规则库
   customKeywords: [
     '作为AI', '语言模型', '生成完毕',
     '选对壳真的影响钱包喵',
@@ -24,6 +24,25 @@ const DEFAULT_CONFIG = {
 let currentConfig = { ...DEFAULT_CONFIG };
 let nameFilterQuery = '';
 let keywordFilterQuery = '';
+
+// 安全转换为字符串 (兼容旧版本遗留的对象格式)
+function ensureString(item) {
+  if (typeof item === 'string') return item.trim();
+  if (item && typeof item === 'object') {
+    return (item.name || item.kw || item.keyword || item.uid || '').trim();
+  }
+  return String(item || '').trim();
+}
+
+function normalizeList(list) {
+  if (!Array.isArray(list)) return [];
+  const result = [];
+  for (const item of list) {
+    const s = ensureString(item);
+    if (s && !result.includes(s)) result.push(s);
+  }
+  return result;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
@@ -53,6 +72,10 @@ function loadData() {
       currentConfig = { ...DEFAULT_CONFIG, ...res.bili_antibot_config };
     }
 
+    // 数据清洗与格式规整，确保所有规则都是可显示的字符串
+    currentConfig.nameKeywords = normalizeList(currentConfig.nameKeywords || DEFAULT_CONFIG.nameKeywords);
+    currentConfig.customKeywords = normalizeList(currentConfig.customKeywords || DEFAULT_CONFIG.customKeywords);
+
     updateStatusTheme(currentConfig.enabled);
 
     // 查询当前标签页的单页捕获数量
@@ -64,7 +87,7 @@ function loadData() {
     document.getElementById('enableAtSpamDetect').checked = currentConfig.enableAtSpamDetect;
     document.getElementById('enablePatternDetect').checked = currentConfig.enablePatternDetect;
 
-    // 渲染列表
+    // 渲染所有规则列表（保证内置与自定义规则全部可见、全部可删）
     renderNameRules();
     renderKeywords();
     renderBlacklist();
@@ -102,15 +125,13 @@ function updateStatusTheme(isEnabled) {
   }
 }
 
-// 批量解析输入文本 (支持逗号、换行、分号隔开多条批量添加)
+// 批量解析输入文本 (支持空格、逗号、换行分隔)
 function parseBatchInput(rawText) {
   if (!rawText) return [];
-  // 如果以 / 开头并且以 / 结尾，作为单条正则不拆分
   const trimmed = rawText.trim();
   if (trimmed.startsWith('/') && trimmed.length > 2 && trimmed.lastIndexOf('/') > 0) {
     return [trimmed];
   }
-  // 否则按空格、中英文逗号、换行隔开
   return trimmed
     .split(/[\s,，;；\n]+/)
     .map(s => s.trim())
@@ -119,14 +140,13 @@ function parseBatchInput(rawText) {
 
 // 绑定交互事件
 function bindEvents() {
-  // 总开关 (红蓝主题切换)
+  // 总开关
   document.getElementById('mainToggle').addEventListener('change', (e) => {
     currentConfig.enabled = e.target.checked;
     updateStatusTheme(currentConfig.enabled);
     saveConfig();
   });
 
-  // 子功能开关
   document.getElementById('enableClusterDetect').addEventListener('change', (e) => {
     currentConfig.enableClusterDetect = e.target.checked;
     saveConfig();
@@ -169,7 +189,7 @@ function bindEvents() {
     if (e.key === 'Enter') handleAddNameRule();
   });
 
-  // 昵称搜索筛选 (支持百条快速过滤)
+  // 昵称搜索筛选
   document.getElementById('searchNameRules').addEventListener('input', (e) => {
     nameFilterQuery = e.target.value.trim().toLowerCase();
     renderNameRules();
@@ -221,6 +241,7 @@ function bindEvents() {
       time: new Date().toLocaleDateString()
     };
 
+    if (!currentConfig.blacklistUsers) currentConfig.blacklistUsers = [];
     currentConfig.blacklistUsers.unshift(item);
     input.value = '';
     saveConfig();
@@ -253,6 +274,8 @@ function bindEvents() {
         const imported = JSON.parse(event.target.result);
         if (imported) {
           currentConfig = { ...currentConfig, ...imported };
+          currentConfig.nameKeywords = normalizeList(currentConfig.nameKeywords);
+          currentConfig.customKeywords = normalizeList(currentConfig.customKeywords);
           saveConfig();
           loadData();
         }
@@ -264,22 +287,25 @@ function bindEvents() {
   });
 }
 
-// 保存配置并更新计数
+// 保存配置到 storage
 function saveConfig() {
   chrome.storage.local.set({ bili_antibot_config: currentConfig }, () => {
     const totalCount = (currentConfig.nameKeywords || []).length;
-    document.getElementById('nameRuleCount').innerText = totalCount;
+    const badge = document.getElementById('nameRuleTotal');
+    if (badge) badge.innerText = `共 ${totalCount} 条`;
   });
 }
 
-// 渲染昵称规则列表 (支持百条流畅滚动与即时搜索)
+// 渲染昵称规则列表 (全部规则可见、可搜、可删)
 function renderNameRules() {
   const container = document.getElementById('nameRulesContainer');
   const countBadge = document.getElementById('nameRuleTotal');
-  const list = currentConfig.nameKeywords || [];
+  if (!container) return;
 
-  countBadge.innerText = `共 ${list.length} 条`;
-  document.getElementById('nameRuleCount').innerText = list.length;
+  const list = normalizeList(currentConfig.nameKeywords || []);
+  currentConfig.nameKeywords = list;
+
+  if (countBadge) countBadge.innerText = `共 ${list.length} 条`;
   container.innerHTML = '';
 
   const displayList = nameFilterQuery
@@ -287,19 +313,20 @@ function renderNameRules() {
     : list;
 
   if (displayList.length === 0) {
-    container.innerHTML = '<div class="empty-placeholder">无匹配规则</div>';
+    container.innerHTML = '<div class="empty-placeholder">暂无规则</div>';
     return;
   }
 
-  displayList.forEach((kw) => {
-    const realIndex = list.indexOf(kw);
+  displayList.forEach((rawKw) => {
+    const kw = ensureString(rawKw);
+    if (!kw) return;
     const isRegex = kw.startsWith('/') && kw.length > 2;
 
     const chip = document.createElement('div');
     chip.className = `rule-chip ${isRegex ? 'is-regex' : ''}`;
     chip.innerHTML = `
       <span class="chip-text" title="${escapeHtml(kw)}">${escapeHtml(kw)}</span>
-      <span class="chip-del" title="删除">
+      <span class="chip-del" title="删除此规则">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -309,6 +336,7 @@ function renderNameRules() {
 
     chip.querySelector('.chip-del').addEventListener('click', (e) => {
       e.stopPropagation();
+      const realIndex = currentConfig.nameKeywords.indexOf(kw);
       if (realIndex !== -1) {
         currentConfig.nameKeywords.splice(realIndex, 1);
         saveConfig();
@@ -324,9 +352,12 @@ function renderNameRules() {
 function renderKeywords() {
   const container = document.getElementById('keywordsContainer');
   const countBadge = document.getElementById('keywordRuleTotal');
-  const list = currentConfig.customKeywords || [];
+  if (!container) return;
 
-  countBadge.innerText = `共 ${list.length} 条`;
+  const list = normalizeList(currentConfig.customKeywords || []);
+  currentConfig.customKeywords = list;
+
+  if (countBadge) countBadge.innerText = `共 ${list.length} 条`;
   container.innerHTML = '';
 
   const displayList = keywordFilterQuery
@@ -334,19 +365,20 @@ function renderKeywords() {
     : list;
 
   if (displayList.length === 0) {
-    container.innerHTML = '<div class="empty-placeholder">无匹配规则</div>';
+    container.innerHTML = '<div class="empty-placeholder">暂无规则</div>';
     return;
   }
 
-  displayList.forEach((kw) => {
-    const realIndex = list.indexOf(kw);
+  displayList.forEach((rawKw) => {
+    const kw = ensureString(rawKw);
+    if (!kw) return;
     const isRegex = kw.startsWith('/') && kw.length > 2;
 
     const chip = document.createElement('div');
     chip.className = `rule-chip ${isRegex ? 'is-regex' : ''}`;
     chip.innerHTML = `
       <span class="chip-text" title="${escapeHtml(kw)}">${escapeHtml(kw)}</span>
-      <span class="chip-del" title="删除">
+      <span class="chip-del" title="删除此规则">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -356,6 +388,7 @@ function renderKeywords() {
 
     chip.querySelector('.chip-del').addEventListener('click', (e) => {
       e.stopPropagation();
+      const realIndex = currentConfig.customKeywords.indexOf(kw);
       if (realIndex !== -1) {
         currentConfig.customKeywords.splice(realIndex, 1);
         saveConfig();
@@ -370,6 +403,7 @@ function renderKeywords() {
 // 渲染精确黑名单
 function renderBlacklist() {
   const container = document.getElementById('blacklistContainer');
+  if (!container) return;
   container.innerHTML = '';
 
   const list = currentConfig.blacklistUsers || [];
@@ -405,7 +439,7 @@ function renderBlacklist() {
 
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/[&<>"']/g, function (m) {
+  return String(str).replace(/[&<>"']/g, function (m) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
   });
 }
