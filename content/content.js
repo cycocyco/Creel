@@ -27,32 +27,35 @@
   // key: uniqueDomId, value: CommentInfo
   const commentPool = new Map();
 
+  // 页面生命周期内的单页捕获计数 (刷新或关闭页面自动归零)
+  let pageBlockedCount = 0;
+
   // 监听来自 hook.js 的拦截计数上报
-  let pendingBlockCount = 0;
-  let saveTimer = null;
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'BILI_ANTIBOT_ADD_STATS' && e.data.count) {
-      pendingBlockCount += e.data.count;
-      if (saveTimer) clearTimeout(saveTimer);
-      // 500ms 轻量防抖写库，完全零性能损耗
-      saveTimer = setTimeout(() => {
-        blockedCount += pendingBlockCount;
-        pendingBlockCount = 0;
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-          chrome.storage.local.set({
-            bili_antibot_stats: {
-              blockedCount,
-              lastActive: Date.now()
-            }
+      const added = e.data.count;
+      pageBlockedCount += added;
+
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        try {
+          chrome.runtime.sendMessage({
+            type: 'UPDATE_PAGE_STATS',
+            pageCount: pageBlockedCount,
+            addCount: added
           });
-          // 同步工具栏图标右下角的捕获数字 Badge
-          try {
-            chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', count: blockedCount });
-          } catch (e) {}
-        }
-      }, 500);
+        } catch (err) {}
+      }
     }
   });
+
+  // 响应来自 Popup 的单页统计查询
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.type === 'GET_CURRENT_PAGE_BLOCKED') {
+        sendResponse({ pageBlockedCount });
+      }
+    });
+  }
 
   // 读取配置
   function loadConfig(callback) {

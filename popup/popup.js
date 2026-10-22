@@ -52,11 +52,16 @@ function loadData() {
     if (res.bili_antibot_config) {
       currentConfig = { ...DEFAULT_CONFIG, ...res.bili_antibot_config };
     }
-    const stats = res.bili_antibot_stats || { blockedCount: 0 };
+    const stats = res.bili_antibot_stats || {};
+    const totalCount = stats.totalBlockedCount ?? stats.blockedCount ?? 0;
 
-    // 渲染统计与状态
-    document.getElementById('blockedCount').innerText = stats.blockedCount || 0;
+    // 渲染总计与状态
+    const totalTag = document.getElementById('totalBlockedTag');
+    if (totalTag) totalTag.innerText = `总${totalCount}`;
     updateStatusTheme(currentConfig.enabled);
+
+    // 查询当前标签页的单页捕获数量
+    queryCurrentTabPageCount();
 
     // 系统开关同步
     document.getElementById('mainToggle').checked = currentConfig.enabled;
@@ -74,14 +79,29 @@ function loadData() {
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes.bili_antibot_stats) {
-        const stats = changes.bili_antibot_stats.newValue;
-        if (stats && typeof stats.blockedCount === 'number') {
-          const countEl = document.getElementById('blockedCount');
-          if (countEl) countEl.innerText = stats.blockedCount;
-        }
+        const stats = changes.bili_antibot_stats.newValue || {};
+        const totalCount = stats.totalBlockedCount ?? stats.blockedCount ?? 0;
+        const totalTag = document.getElementById('totalBlockedTag');
+        if (totalTag) totalTag.innerText = `总${totalCount}`;
+        queryCurrentTabPageCount();
       }
     });
   }
+}
+
+// 查询当前活动标签页的本页捕获量
+function queryCurrentTabPageCount() {
+  if (typeof chrome === 'undefined' || !chrome.tabs) return;
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs && tabs[0];
+    if (currentTab && currentTab.id) {
+      chrome.runtime.sendMessage({ type: 'GET_TAB_PAGE_COUNT', tabId: currentTab.id }, (res) => {
+        const pageCount = (res && typeof res.pageCount === 'number') ? res.pageCount : 0;
+        const pageEl = document.getElementById('pageBlockedCount');
+        if (pageEl) pageEl.innerText = pageCount;
+      });
+    }
+  });
 }
 
 // 更新状态重点色主题 (开启: 红色捕杀 | 未开启: 蓝色放行)
@@ -139,6 +159,21 @@ function bindEvents() {
     currentConfig.enablePatternDetect = e.target.checked;
     saveConfig();
   });
+
+  // 点击统计胶囊，允许重置历史总计
+  const statPill = document.getElementById('statPill');
+  if (statPill) {
+    statPill.addEventListener('click', () => {
+      chrome.storage.local.get(['bili_antibot_stats'], (res) => {
+        const total = res.bili_antibot_stats?.totalBlockedCount ?? res.bili_antibot_stats?.blockedCount ?? 0;
+        if (window.confirm(`当前累计已净化 ${total} 条 BOT 评论。\n是否将累计计数清零？`)) {
+          chrome.runtime.sendMessage({ type: 'RESET_TOTAL_STATS' }, () => {
+            document.getElementById('totalBlockedTag').innerText = '总0';
+          });
+        }
+      });
+    });
+  }
 
   // 1. 昵称规则添加 (支持批量)
   const handleAddNameRule = () => {

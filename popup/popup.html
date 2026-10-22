@@ -31,11 +31,13 @@
       </div>
 
       <div class="header-right">
-        <!-- 紧凑微型计数胶囊 (取代臃肿的大白卡片) -->
-        <div class="stat-pill" title="已捕获 BOT / 昵称规则数">
-          <span class="stat-val" id="blockedCount">0</span>
+        <!-- 紧凑微型计数胶囊 (清晰区分「本页捕获」与「规则数」，附带总数) -->
+        <div class="stat-pill" id="statPill" title="点击可清零历史总计数">
+          <span class="stat-page-label">本页</span>
+          <span class="stat-val" id="pageBlockedCount">0</span>
           <span class="stat-sep">/</span>
           <span class="stat-rules" id="nameRuleCount">0</span>
+          <span class="stat-total-tag" id="totalBlockedTag">总0</span>
         </div>
 
         <!-- MD3 开关 -->

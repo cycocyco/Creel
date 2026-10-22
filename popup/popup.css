@@ -127,14 +127,28 @@ body {
 /* 极简计数微胶囊 */
 .stat-pill {
   display: flex;
-  align-items: baseline;
-  gap: 3px;
+  align-items: center;
+  gap: 4px;
   background: var(--bg-container);
   border: 1px solid var(--outline-variant);
   border-radius: 12px;
   padding: 3px 8px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.stat-pill:hover {
+  border-color: var(--outline);
+  background: var(--bg-container-high);
+}
+
+.stat-page-label {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  font-family: -apple-system, sans-serif;
+  letter-spacing: -0.2px;
 }
 
 .stat-val {
@@ -149,6 +163,15 @@ body {
 
 .stat-rules {
   color: var(--text-secondary);
+}
+
+.stat-total-tag {
+  font-size: 9px;
+  background: var(--bg-container-highest);
+  color: var(--text-tertiary);
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 2px;
 }
 
 /* MD3 Switch */
