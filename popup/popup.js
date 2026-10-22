@@ -48,16 +48,11 @@ function initTabs() {
 
 // 加载持久化数据与状态
 function loadData() {
-  chrome.storage.local.get(['bili_antibot_config', 'bili_antibot_stats'], (res) => {
+  chrome.storage.local.get(['bili_antibot_config'], (res) => {
     if (res.bili_antibot_config) {
       currentConfig = { ...DEFAULT_CONFIG, ...res.bili_antibot_config };
     }
-    const stats = res.bili_antibot_stats || {};
-    const totalCount = stats.totalBlockedCount ?? stats.blockedCount ?? 0;
 
-    // 渲染总计与状态
-    const totalTag = document.getElementById('totalBlockedTag');
-    if (totalTag) totalTag.innerText = `总${totalCount}`;
     updateStatusTheme(currentConfig.enabled);
 
     // 查询当前标签页的单页捕获数量
@@ -74,19 +69,6 @@ function loadData() {
     renderKeywords();
     renderBlacklist();
   });
-
-  // 监听统计动态跳变
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes.bili_antibot_stats) {
-        const stats = changes.bili_antibot_stats.newValue || {};
-        const totalCount = stats.totalBlockedCount ?? stats.blockedCount ?? 0;
-        const totalTag = document.getElementById('totalBlockedTag');
-        if (totalTag) totalTag.innerText = `总${totalCount}`;
-        queryCurrentTabPageCount();
-      }
-    });
-  }
 }
 
 // 查询当前活动标签页的本页捕获量
@@ -159,21 +141,6 @@ function bindEvents() {
     currentConfig.enablePatternDetect = e.target.checked;
     saveConfig();
   });
-
-  // 点击统计胶囊，允许重置历史总计
-  const statPill = document.getElementById('statPill');
-  if (statPill) {
-    statPill.addEventListener('click', () => {
-      chrome.storage.local.get(['bili_antibot_stats'], (res) => {
-        const total = res.bili_antibot_stats?.totalBlockedCount ?? res.bili_antibot_stats?.blockedCount ?? 0;
-        if (window.confirm(`当前累计已净化 ${total} 条 BOT 评论。\n是否将累计计数清零？`)) {
-          chrome.runtime.sendMessage({ type: 'RESET_TOTAL_STATS' }, () => {
-            document.getElementById('totalBlockedTag').innerText = '总0';
-          });
-        }
-      });
-    });
-  }
 
   // 1. 昵称规则添加 (支持批量)
   const handleAddNameRule = () => {

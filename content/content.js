@@ -33,15 +33,13 @@
   // 监听来自 hook.js 的拦截计数上报
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'BILI_ANTIBOT_ADD_STATS' && e.data.count) {
-      const added = e.data.count;
-      pageBlockedCount += added;
+      pageBlockedCount += e.data.count;
 
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         try {
           chrome.runtime.sendMessage({
             type: 'UPDATE_PAGE_STATS',
-            pageCount: pageBlockedCount,
-            addCount: added
+            pageCount: pageBlockedCount
           });
         } catch (err) {}
       }
