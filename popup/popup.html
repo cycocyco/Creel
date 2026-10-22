@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>鱼篓 (Creel)</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="theme-active">
+  <div class="app-shell">
+    <!-- Header: 极简集成式顶栏 (无AI废话，紧凑单行) -->
+    <header class="app-header">
+      <div class="brand">
+        <!-- 鱼篓 SVG 标志 -->
+        <svg class="creel-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 8l2 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l2-12"/>
+          <path d="M3 8h18"/>
+          <path d="M7 8V6a5 5 0 0 1 10 0v2"/>
+          <line x1="10" y1="12" x2="14" y2="12"/>
+          <line x1="9" y1="16" x2="15" y2="16"/>
+        </svg>
+        <div class="brand-text">
+          <div class="brand-title">
+            <span>鱼篓</span>
+            <span class="brand-en">Creel</span>
+          </div>
+          <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span class="status-text" id="statusLabel">捕杀中</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- 紧凑微型计数胶囊 (取代臃肿的大白卡片) -->
+        <div class="stat-pill" title="已捕获 BOT / 昵称规则数">
+          <span class="stat-val" id="blockedCount">0</span>
+          <span class="stat-sep">/</span>
+          <span class="stat-rules" id="nameRuleCount">0</span>
+        </div>
+
+        <!-- MD3 开关 -->
+        <label class="md3-switch" title="切换拦截状态">
+          <input type="checkbox" id="mainToggle" checked>
+          <span class="md3-slider"></span>
+        </label>
+      </div>
+    </header>
+
+    <!-- MD3 Segmented Tab Bar -->
+    <nav class="md3-tabs">
+      <button class="tab-item active" data-tab="names">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        <span>昵称规则</span>
+      </button>
+
+      <button class="tab-item" data-tab="keywords">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span>正文正则</span>
+      </button>
+
+      <button class="tab-item" data-tab="blacklist">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+        </svg>
+        <span>黑名单</span>
+      </button>
+
+      <button class="tab-item" data-tab="settings">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        <span>开关</span>
+      </button>
+    </nav>
+
+    <!-- 工作区 (占满 85% 核心版面) -->
+    <main class="app-main">
+      <!-- Tab 1: 昵称规则面板 -->
+      <section class="tab-panel active" id="panel-names">
+        <!-- 紧凑输入行：支持回车或多词批量粘贴 -->
+        <div class="input-bar">
+          <input type="text" id="nameRuleInput" class="md3-input" placeholder="添加关键词或 /正则/ (空格或逗号批量)" autocomplete="off">
+          <button id="addNameRuleBtn" class="md3-btn-primary" title="添加规则">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- 检索与统计工具条 (面向百级规则) -->
+        <div class="list-toolbar">
+          <div class="search-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="searchNameRules" class="search-input" placeholder="搜索已存规则...">
+          </div>
+          <span class="rule-badge" id="nameRuleTotal">共 0 条</span>
+        </div>
+
+        <!-- 可容纳数百条规则的紧凑网格流容器 -->
+        <div class="rules-scroll-area" id="nameRulesContainer">
+          <!-- JS 动态渲染 -->
+        </div>
+      </section>
+
+      <!-- Tab 2: 正文特征/正则面板 -->
+      <section class="tab-panel" id="panel-keywords">
+        <div class="input-bar">
+          <input type="text" id="keywordInput" class="md3-input" placeholder="输入正文关键词或 /正则/i" autocomplete="off">
+          <button id="addKeywordBtn" class="md3-btn-primary" title="添加">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="list-toolbar">
+          <div class="search-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="searchKeywordRules" class="search-input" placeholder="搜索正文规则...">
+          </div>
+          <span class="rule-badge" id="keywordRuleTotal">共 0 条</span>
+        </div>
+
+        <div class="rules-scroll-area" id="keywordsContainer">
+          <!-- JS 动态渲染 -->
+        </div>
+      </section>
+
+      <!-- Tab 3: 精确黑名单 -->
+      <section class="tab-panel" id="panel-blacklist">
+        <div class="input-bar">
+          <input type="text" id="blacklistInput" class="md3-input" placeholder="指定拉黑 UID 或精准用户名" autocomplete="off">
+          <button id="addBlacklistBtn" class="md3-btn-primary" title="拉黑">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="rules-scroll-area list-mode" id="blacklistContainer">
+          <!-- JS 动态渲染 -->
+        </div>
+      </section>
+
+      <!-- Tab 4: 系统开关与偏好 -->
+      <section class="tab-panel" id="panel-settings">
+        <div class="settings-group">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-title">同屏数值与文本聚类</span>
+              <span class="setting-sub">多账号发布相同密集数值自动判定为洗稿矩阵</span>
+            </div>
+            <label class="md3-switch sm">
+              <input type="checkbox" id="enableClusterDetect" checked>
+              <span class="md3-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-title">强行 @路人 刷量检测</span>
+              <span class="setting-sub">识别伪装艾特与密集数据提要组合</span>
+            </div>
+            <label class="md3-switch sm">
+              <input type="checkbox" id="enableAtSpamDetect" checked>
+              <span class="md3-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-title">AI 指令与口癖残留</span>
+              <span class="setting-sub">过滤“作为语言模型”、“主人拿...”、“钱包喵”等</span>
+            </div>
+            <label class="md3-switch sm">
+              <input type="checkbox" id="enablePatternDetect" checked>
+              <span class="md3-slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 底部极简通用栏 (导入 / 导出 / 版本) -->
+    <footer class="app-footer">
+      <div class="footer-actions">
+        <button id="exportBtn" class="footer-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>备份规则</span>
+        </button>
+
+        <button id="importBtn" class="footer-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span>导入</span>
+        </button>
+        <input type="file" id="importFileInput" accept=".json" style="display: none;">
+      </div>
+
+      <span class="ver-text">Creel v3.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
